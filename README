@@ -17,6 +17,11 @@ Approach:
 Caching algorithm - simple Least Frequently Used
 --Since we are given the probabilities from the outset, we do not need to take measurements, as
 a normal web caching system would.
+--We can try using a "cache everywhere" strategy. When one HTTP server's cache is updated, we
+can get every other server's cache to update as well, since we always move towards a "better"
+cache in this project with probabilities fixed.
+----If probabilities were not fixed, we would need to bootstrap for some period of time while
+taking measurements and figuring out which pages actually are most popular.
 
 If (Size_of_webpage < free_space_in_cache)
     Store webpage in cache
