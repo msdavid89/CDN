@@ -1,0 +1,40 @@
+CS5700 Project 5: CDN
+http://david.choffnes.com/classes/cs4700sp17/project5.php
+
+------------------------
+
+Responsibilities:
+
+Michael:
+
+Oladipupo:
+
+------------------------
+
+Approach:
+
+
+Caching algorithm - simple Least Frequently Used
+--Since we are given the probabilities from the outset, we do not need to take measurements, as
+a normal web caching system would.
+
+If (Size_of_webpage < free_space_in_cache)
+    Store webpage in cache
+Else
+    Find the lowest cumulative probability that can be uncached in order to cache new page
+    If (cumulative_probability < probability_of_new_webpage)
+        Remove pages from cache
+        Cache new page
+
+
+Server Selection Strategy -
+
+
+-------------------------
+
+Challenges:
+
+
+-------------------------
+
+

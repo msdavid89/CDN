@@ -34,7 +34,7 @@ class Packet:
 
 
     def parse(self,packet):
-        
+
 
 class Question:
 
@@ -71,6 +71,6 @@ if __name__== '__main__':
     parser.add_argument('-p',dest='port',type=int)
     parser.add_argument('-n',dest='name')
     args = parser.parse_args()
-
+    server = DNSServer()
 
 
