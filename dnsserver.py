@@ -190,7 +190,7 @@ class DNSServer:
         dns_response = packet.generate_answer(self.name, best_server)
 
         try:
-            self.sock.sendto(dns_response, best_server)
+            self.sock.sendto(dns_response, client)
         except:
             sys.exit("Failed to send DNS Answer.")
 
