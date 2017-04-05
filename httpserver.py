@@ -1,17 +1,45 @@
-#!/usr/bin/env python
-import BaseHTTPServer
-from SimpleHTTPServer import SimpleHTTPRequestHandler 
+#!/usr/bin/python
+import sys
+import socket
+import argparse
+import thread
+
+class CacheHandler:
+
+	def __init__(self):
+		self.cache = []
 
 
 
-def CustomizedHTTPHandler():
-        Server = BaseHTTPServer.HTTPServer
-	hadl = SimpleHTTPRequestHandler
-	server_address = ("172.16.67.170",7711)
-	hadl.protocol_version = 'HTTP/1.1'
-	httpd = Server(server_address, hadl)
-	httpd.serve_forever()
+class HTTPServer:
+
+	def __init__(self, port, origin):
+		self.port = port
+		self.origin = origin
+		self.cache = CacheHandler()
+		try:
+			self.serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self.serv_sock.bind(('', self.port))
+			self.serv_sock.listen(10)
+		except:
+			sys.exit("Failed to create socket.")
+
+	def run_server(self):
+		while True:
+			try:
+				cli_sock, addr = self.serv_sock.accept()
+				thread.start_new_thread(self.connection_handler, cli_sock, addr)
+			except:
+				sys.exit("Error accepting connection or spawning thread for it.")
+
+	def connection_handler(self, sock, addr):
+		data = sock.recv(1024)
+
 
 if __name__ == '__main__':
-  serv = CustomizedHTTPHandler( )
-  serv.start()
+	parser = argparse.ArgumentParser(description='HTTP Server')
+	parser.add_argument('-p',dest='port',type=int)
+	parser.add_argument('-o',dest='origin')
+	args = parser.parse_args()
+	server = HTTPServer(args.port, args.origin)
+	server.run_server()

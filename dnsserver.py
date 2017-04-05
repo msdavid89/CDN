@@ -162,6 +162,7 @@ class Packet:
 
 
 class DNSServer:
+    """This class is the entry point for the program and handles the actual connection."""
     def __init__(self, port, name):
         self.cdn_logic = CDNLogic()
         self.client_locations = {}
@@ -176,6 +177,7 @@ class DNSServer:
             sys.exit("Failed to create socket.")
 
     def get_ipaddr(self):
+        """Find IP address of the local machine."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('cs5700cdnproject.ccs.neu.edu', 80))
         ip = s.getsockname()[0]
@@ -183,6 +185,8 @@ class DNSServer:
         return ip
 
     def run_server(self):
+        """Runs in an infinite loop, getting DNS requests from hosts and spawning
+            a new thread to actually process the data."""
         while True:
             try:
                 request, client = self.sock.recvfrom(65535)
@@ -192,6 +196,9 @@ class DNSServer:
         #self.sock.close()
 
     def handle_request(self, request, client):
+        """Processes the data for a given DNS request/thread. Based on the request,
+            choose the best replica server to handle the HTTP request and alert the
+            client."""
         packet = Packet()
         packet.parse_question(request)
 
