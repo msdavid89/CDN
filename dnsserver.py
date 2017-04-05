@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 import socket
 import struct
@@ -9,7 +10,7 @@ class CDNLogic:
 
     def __init__(self):
         self.EC2_HOSTS = {'ec2-54-166-234-74.compute-1.amazonaws.com':'54.166.234.74',
-             'ec2-52-90-80-45.compute-1.amazonaws.com':'52.90.88.45',
+             'ec2-52-90-80-45.compute-1.amazonaws.com':'52.90.80.45',
              'ec2-54-183-23-203.us-west-1.compute.amazonaws.com':'54.183.23.203',
              'ec2-54-70-111-57.us-west-2.compute.amazonaws.com':'54.70.111.57',
              'ec2-52-215-87-82.eu-west-1.compute.amazonaws.com':'52.215.87.82',
@@ -18,9 +19,21 @@ class CDNLogic:
              'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com':'52.62.198.57',
              'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com':'52.192.64.163',
              'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com':'54.233.152.60'}
+        self.coords = {'54.166.234.74':[],
+                       '52.90.88.45':[],
+                       '54.183.23.203':[],
+                       '54.70.111.57':[],
+                       '52.215.87.82':[],
+                       '52.28.249.79':[],
+                       '54.169.10.54':[],
+                       '52.62.198.57':[],
+                       '52.192.64.163':[],
+                       '54.233.152.60':[]}
 
     def find_best_replica(self, client_addr):
         return '54.233.152.60'
+
+    
 
 
 class Packet:
@@ -202,5 +215,3 @@ if __name__== '__main__':
     args = parser.parse_args()
     server = DNSServer(args.port, args.name)
     server.run_server()
-
-
