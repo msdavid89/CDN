@@ -38,6 +38,13 @@ class CDNLogic:
 
 class Packet:
     """
+    Standard defined here: https://tools.ietf.org/html/rfc2929
+    Useful info on DNS field values: http://www.zytrax.com/books/dns/ch15/
+    
+    'The unsigned fields query count (QDCOUNT), answer count (ANCOUNT),
+    authority count (NSCOUNT), and additional information count (ARCOUNT)
+    express the number of records in each section for all opcodes'
+    
       0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     |                      ID                       |
@@ -55,30 +62,30 @@ class Packet:
     Query
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     |                                               |
-    /                     QNAME                     /
+    /                     QNAME                     / The domain name being queried
     /                                               /
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                     QTYPE                     |
+    |                     QTYPE                     | The resource records being requested
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                     QCLASS                    |
+    |                     QCLASS                    | The Resource Record(s) class being requested, for instance, internet
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     Answer
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     |                                               |
-    /                                               /
+    /                                               / Reflects the QNAME of the question 
     /                      NAME                     /
     |                                               |
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                      TYPE                     |
+    |                      TYPE                     | The RR type, for example, A or AAAA
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                     CLASS                     |
+    |                     CLASS                     | The RR class, for instance, Internet
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                      TTL                      |
+    |                      TTL                      | Measured in seconds
     |                                               |
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                   RDLENGTH                    |
+    |                   RDLENGTH                    | The length of RR specific data in octets
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
-    /                     RDATA                     /
+    /                     RDATA                     / Actual Resource Record data (IP address)
     /                                               /
     +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
     """
@@ -101,6 +108,7 @@ class Packet:
         self.data = ''
 
     def reset(self):
+        """Unclear if this will be used in final submission."""
         self.id = -1
         self.flags = 0
         self.qcount = 0
@@ -118,6 +126,8 @@ class Packet:
         self.data = ''
 
     def generate_question(self, domain):
+        """Given a domain, generate the query section for the DNS packet, and the 
+            common section (at the top of the diagram above)."""
         self.qname = domain
         packet = struct.pack('!HHHHHH', self.id, self.flags, self.qcount,
                              self.acount, self.nscount, self.arcount)
@@ -128,31 +138,36 @@ class Packet:
 
 
     def generate_answer(self, domain, ip_addr):
-        self.acount = 1
-        self.flags = 0x8180
+        """Given a domain and replica IP address, construct the DNS answer that will
+            be sent to the client."""
+        self.acount = 1 # One answer will be returned
+        self.flags = 0x8180 # Bits set: QR (query response), RD (recursion desired), RA (recursion available)
         packet = self.generate_question(domain)
-        self.aname = 0xC00C
-        self.atype = 0x0001
-        self.a_class = 0x0001
+        self.aname = 0xC00C # Pointer to qname label: 1100 0000 0000 1100
+        self.atype = 0x0001 # The A record for the domain name
+        self.a_class = 0x0001 # Internet (IP)
         self.ttl = 60
         self.data = ip_addr
-        self.length = 4
+        self.length = 4 # IP address is 32 bits or 4 bytes.
         packet += struct.pack('!HHHLH4s', self.aname, self.atype, self.a_class,
                           self.ttl, self.length, socket.inet_aton(self.data))
         return packet
 
 
     def parse_question(self, packet):
+        """After receiving a question, construct a DNS packet data structure that 
+            contains the relevant data from that question. The answer is filled in
+            later in a call to generate_answer()"""
         [self.id, self.flags,
          self.qcount, self.acount,
          self.nscount, self.arcount] = struct.unpack('!6H', packet[0:12])
         [self.qtype, self.q_class] = struct.unpack('!HH', packet[-4:])
 
-        name = packet[12:-4]
+        name = packet[12:-4] # This is qname in the DNS packet diagram above.
         i = 0
         tmp = []
         while True:
-            k = ord(name[i])
+            k = ord(name[i]) # Convert from Unicode to numeric representation of character
             if k == 0:
                 break
             i += 1
