@@ -5,21 +5,66 @@ http://david.choffnes.com/classes/cs4700sp17/project5.php
 
 Responsibilities:
 
-Michael:
+Michael: DNS and HTTP server python code
 
-Oladipupo:
+Oladipupo: Debugging
 
 ------------------------
 
-Approach:
+High-Level Approach:
+
+The DNS server is broken down into three logical classes. First, there is DNSServer class which
+handles the networking aspects and the control flow for the program. There is a Packet class that
+handles the DNS protocol specifics, such as parsing the questions that the server is asked and
+generating an answer to respond with. Finally, there is a CDNLogic class. This class is mostly
+empty at the time of the milestone, but will be used to determine which replica server the HTTP
+clients should be referred to.
+
+The HTTP server has two classes: the server and the cache. The HTTPServer class does most of the
+work. It establishes sockets to the DNS server, the Origin server, and has a listening socket
+for connections to HTTP clients. After receiving an HTTP request, the server checks to see if
+the requested file is stored in the local cache. If it is, then the server returns it to the
+client. If not, the server queries the Origin server for the file (currently using the requests
+library, though this may change). The response from the Origin server is then forwarded to the
+HTTP client. The response is also passed to the Cache class, which can decide whether or not to
+store the contents, and if so, what might need to be removed from the cache to free up space.
+
+
+------------------------
+
+TODO:
+1. Implement caching logic (httpserver.py)
+
+2. Location-based replica servers. (dnsserver.py)
+
+3. Active measurement for replica servers (both)
+
+4. Ensure thread safety (both)
+
+5. Create Deploy/Run/Stop scripts
+
+------------------------
+
+Performance Enhancing Tricks:
+
+Note: We did not employ the techniques in this paper, but did find it instructive for thinking
+about the kinds of performance issues involved in running a CDN:
+https://www.akamai.com/us/en/multimedia/documents/technical-publication/algorithmic-nuggets-in-content-delivery-technical-publication.pdf
+
+
+Our DNS and HTTP servers are multithreaded, so each new connection doesn't require waiting
+for old ones to finish. The performance is ultimately slowed a little bit because access to
+the cache needs to be protected by locks; if multiple threads read or write to the cache at
+once, chaos would ensue.
 
 
 Caching algorithm - simple Least Frequently Used
+
 --Since we are given the probabilities from the outset, we do not need to take measurements, as
 a normal web caching system would.
 --We can try using a "cache everywhere" strategy. When one HTTP server's cache is updated, we
 can get every other server's cache to update as well, since we always move towards a "better"
-cache in this project with probabilities fixed.
+cache in this project with probabilities fixed. If we have time to implement this, we will.
 ----If probabilities were not fixed, we would need to bootstrap for some period of time while
 taking measurements and figuring out which pages actually are most popular.
 
@@ -32,13 +77,46 @@ Else
         Cache new page
 
 
-Server Selection Strategy -
+Server Selection Strategy - Initially location based, but we intend to use active measurement
+to optimize performance.
+
+---Network latency (RTT) is the primary network performance issue, since these will be
+low-bandwidth HTTP requests.
+---Ideally, our server selection strategy would take into account which replicas already have
+which data cached. It is likely that a server from further away or with longer RTT will still
+provide a faster response if it has a cached copy of the file. To implement this, we can have
+a consistent approach to caching across replicas, and have the DNS CDNLogic include a mapping
+of the replicas to their expected caches. We can allow a brief period of bootstrapping based
+on other metrics, and then go based on expected cache. If multiple replicas have the file in
+their cache, we can break the tie with location/best RTT. We have to be careful not to get
+"stuck" using replicas with bad response times, and not to spend too much time processing.
+---Active measurements can be done using scamper, taking measurements no more than once per
+second. The HTTP servers take these measurements and pass them to the DNS server, which applies
+a formula to determine the best server to use. For instance, a weighted average:
+            new_metric = .6*old_metric + .4*new_observation;
+---Alternatively, since this is a "trusted" environment, we can rely on the servers to aggregate
+this information and pass it to the DNS server less frequently. Perhaps the HTTP server takes 60
+samples, calculates the average, and passes it to the DNS server, which gets new rankings every
+minute.
+---If we have sufficient time to test, the best solution might be to come up with an algorithm
+that includes geographic location, RTT, and the expected cache. We do not know what the optimal
+algorithm would be, but perhaps each server (i) can receive a weighted score in the form of:
+        Latency_i = # of replicas with worse RTT
+        Distance_i = 5 for the closest three replicas, 2 for the next three, and 0 for the rest
+        Cache_i = 5 if file is expected in the cache, 0 otherwise
+        Score_i = Latency_i + Distance_i + Cache_i
+The highest score wins.
 
 
 -------------------------
 
 Challenges:
 
+1. Initially, getting the servers to work at all.
+
+2. Thread safety can be tricky.
+
+3. The scripts and testing in a distributed environment.
 
 -------------------------
 
