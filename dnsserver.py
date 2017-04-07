@@ -194,7 +194,7 @@ class DNSServer:
     def get_ipaddr(self):
         """Find IP address of the local machine."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('cs5700cdnproject.ccs.neu.edu', 80))
+        s.connect(('google.com', 80))
         ip = s.getsockname()[0]
         s.close()
         return ip
@@ -205,7 +205,9 @@ class DNSServer:
         while True:
             try:
                 request, client = self.sock.recvfrom(65535)
-                thread.start_new_thread(self.handle_request, request, client)
+		#print request
+		print client
+                thread.start_new_thread = (self.handle_request, request, client)
             except:
                 sys.exit("Error receiving data or creating thread.")
         #self.sock.close()
@@ -215,13 +217,12 @@ class DNSServer:
             choose the best replica server to handle the HTTP request and alert the
             client."""
         packet = Packet()
-        packet.parse_question(request)
 
+        packet.parse_question(request)
         if client[0] in self.client_locations:
             best_server = self.client_locations[client[0]]
         else:
             best_server = self.cdn_logic.find_best_replica(client[0])
-
         dns_response = packet.generate_answer(self.name, best_server)
 
         try:
@@ -229,7 +230,7 @@ class DNSServer:
         except:
             sys.exit("Failed to send DNS Answer.")
 
-
+	
 if __name__== '__main__':
     parser = argparse.ArgumentParser(description='DNS Server')
     parser.add_argument('-p',dest='port',type=int)
