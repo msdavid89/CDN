@@ -107,6 +107,13 @@ class Packet:
         self.length = 0
         self.data = ''
 
+    def debug(self):
+        print "ID: %X, Flags: %X" % (self.id, self.flags)
+        print "Qcount: %d, Acount: %d, NS: %d, AR: %d" % (self.qcount, self.acount, self.nscount, self.arcount)
+        print "Qname: %s, Qtype: %X, Qclass: %X" % (self.qname, self.qtype, self.q_class)
+        print "Aname: %X, Atype: %X, Aclass: %X" % (self.aname, self.atype, self.a_class)
+        print "TTL: %d, Length: %X, IP: %s" % (self.ttl, self.length, self.data)
+
     def reset(self):
         """Unclear if this will be used in final submission."""
         self.id = -1
@@ -140,15 +147,16 @@ class Packet:
     def generate_answer(self, domain, ip_addr):
         """Given a domain and replica IP address, construct the DNS answer that will
             be sent to the client."""
+        self.arcount = 0 # Using dig, this is set to 1, but we want it zero.
         self.acount = 1 # One answer will be returned
         self.flags = 0x8180 # Bits set: QR (query response), RD (recursion desired), RA (recursion available)
         packet = self.generate_question(domain)
         self.aname = 0xC00C # Pointer to qname label: 1100 0000 0000 1100
         self.atype = 0x0001 # The A record for the domain name
         self.a_class = 0x0001 # Internet (IP)
-        self.ttl = 60
+        self.ttl = 60 # 32-bit value
+        self.length = 4 # IP address is 32 bits or 4 bytes, but the length field is 16 bits.
         self.data = ip_addr
-        self.length = 4 # IP address is 32 bits or 4 bytes.
         packet += struct.pack('!HHHLH4s', self.aname, self.atype, self.a_class,
                           self.ttl, self.length, socket.inet_aton(self.data))
         return packet
@@ -161,7 +169,6 @@ class Packet:
         [self.id, self.flags,
          self.qcount, self.acount,
          self.nscount, self.arcount] = struct.unpack('!6H', packet[0:12])
-        [self.qtype, self.q_class] = struct.unpack('!HH', packet[-4:])
 
         name = packet[12:-4] # This is qname in the DNS packet diagram above.
         i = 0
@@ -174,6 +181,8 @@ class Packet:
             tmp.append(name[i:i+k])
             i += k
         self.qname = '.'.join(tmp)
+        # In the next line, we unpack the 4 bytes past the name, excluding the null byte.
+        [self.qtype, self.q_class] = struct.unpack('!HH', packet[12+i+1:12+i+1+4])
 
 
 class DNSServer:
@@ -215,13 +224,19 @@ class DNSServer:
             choose the best replica server to handle the HTTP request and alert the
             client."""
         packet = Packet()
-
         packet.parse_question(request)
+
+        print("Request: " + repr(request))
+        packet.debug()
+
         if client[0] in self.client_locations:
             best_server = self.client_locations[client[0]]
         else:
             best_server = self.cdn_logic.find_best_replica(client[0])
         dns_response = packet.generate_answer(self.name, best_server)
+
+        print('DNS Response: ' + repr(dns_response))
+        packet.debug()
 
         try:
             self.sock.sendto(dns_response, client)
