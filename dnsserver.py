@@ -194,7 +194,7 @@ class DNSServer:
     def get_ipaddr(self):
         """Find IP address of the local machine."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('google.com', 80))
+        s.connect(('8.8.8.8', 80))
         ip = s.getsockname()[0]
         s.close()
         return ip
@@ -205,9 +205,7 @@ class DNSServer:
         while True:
             try:
                 request, client = self.sock.recvfrom(65535)
-		#print request
-		print client
-                thread.start_new_thread = (self.handle_request, request, client)
+                thread.start_new_thread(self.handle_request, (request, client))
             except:
                 sys.exit("Error receiving data or creating thread.")
         #self.sock.close()
