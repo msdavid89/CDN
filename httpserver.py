@@ -128,7 +128,7 @@ class HTTPServer:
         while True:
             try:
                 cli_sock, addr = self.serv_sock.accept()
-                thread.start_new_thread(self.connection_handler, cli_sock, addr)
+                thread.start_new_thread(self.connection_handler, (cli_sock, addr))
             except:
                 sys.exit("Error accepting connection or spawning thread for it.")
 
