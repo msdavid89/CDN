@@ -31,7 +31,7 @@ class CDNLogic:
                        '54.233.152.60':[-23.5475,-46.6361]}
 
     def find_best_replica(self, client_addr):
-        return '54.233.152.60'
+        return '52.90.88.45'
 
     
 
