@@ -8,7 +8,7 @@ import thread
 
 class CDNLogic:
 
-    def __init__(self):
+    def __init__(self, port, ip_addr):
         self.EC2_HOSTS = {'ec2-54-166-234-74.compute-1.amazonaws.com':'54.166.234.74',
              'ec2-52-90-80-45.compute-1.amazonaws.com':'52.90.80.45',
              'ec2-54-183-23-203.us-west-1.compute.amazonaws.com':'54.183.23.203',
@@ -29,10 +29,35 @@ class CDNLogic:
                        '52.62.198.57':[-33.8679,151.2073],
                        '52.192.64.163':[35.6895,139.6917],
                        '54.233.152.60':[-23.5475,-46.6361]}
+        self.port = port
+        self.my_ip = ip_addr
+        try:
+            self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.replica_sock.bind((self.my_ip, self.port))
+            self.replica_sock.listen(10)
+            thread.start_new_thread(self.http)
+        except:
+            sys.exit("Failed to create replica server socket.")
+
+
 
     def find_best_replica(self, client_addr):
         return '52.90.88.45'
 
+    def http(self):
+        """Server loop accepting connections from replicas."""
+        while True:
+            try:
+                rep_sock, addr = self.replica_sock.accept()
+                thread.start_new_thread(self.http_handler, (rep_sock, addr))
+            except:
+                sys.exit("Error accepting connection from replica.")
+
+    def http_handler(self, sock, addr):
+        """Handles communication from replica servers. Receive information about
+            cache updates and/or active measurements."""
+        while True:
+            pass
     
 
 
@@ -188,12 +213,12 @@ class Packet:
 class DNSServer:
     """This class is the entry point for the program and handles the actual connection."""
     def __init__(self, port, name):
-        self.cdn_logic = CDNLogic()
+        self.name = name
+        self.port = port
+        self.my_ip = self.get_ipaddr()
+        self.cdn_logic = CDNLogic(self.port, self.my_ip)
         self.client_locations = {}
         self.sock = -1
-        self.port = port
-        self.name = name
-        self.my_ip = self.get_ipaddr()
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock.bind((self.my_ip, self.port))

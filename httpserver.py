@@ -97,9 +97,11 @@ class HTTPServer:
         self.cache = CacheHandler()
         try:
             # Create socket for DNS Server connection, used for active measurements
-            self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.port))
-            thread.start_new_thread(self.handle_dns)
+            # and/or passing cache info to DNS server.
+            x = 1
+            #self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.port))
+            #thread.start_new_thread(self.handle_dns)
         except:
             sys.exit("Failed to connect to DNS Server.")
         try:
@@ -111,6 +113,7 @@ class HTTPServer:
         try:
             # Create socket for connecting to clients making HTTP requests
             self.serv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.serv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.serv_sock.bind(('', self.port))
             self.serv_sock.listen(10)
         except:
@@ -138,17 +141,13 @@ class HTTPServer:
             data = sock.recv(4096)
             host = ''
             path = ''
-            if "Host: " in data:
-                pos = data.find("Host: ") + 6
-                while not data[pos].isspace():
-                    host += data[pos]
-                    pos += 1
-            if "GET " in data:
-                # Find the path of the file the client is requesting
-                pos = data.find("GET ") + 4
-                while not data[pos].ispace():
-                    path += data[pos]
-                    pos += 1
+            lines = data.splitlines()
+            for line in lines:
+                if "Host: " in line:
+                    host = line[6:]
+                if "GET " in line:
+                    # Find the path of the file the client is requesting
+                    path = line.split()[1]
         except:
             sys.exit("Error receiving data from client socket.")
 
@@ -177,7 +176,8 @@ class HTTPServer:
                     response += str(h[0]) + ': ' + str(h[1]) + '\r\n'
                 response += '\r\n'
                 response += r.content
-                self.cache.update_cache(path, r.contents)
+                self.cache.update_cache(path, r.content)
+                sock.sendto(response, addr)
             else:
                 response = 'HTTP/1.1 404 Not Found'
                 sock.sendto(response, addr)
