@@ -156,11 +156,12 @@ class HTTPServer:
         if self.cache.check_cache(path):
             # Get content from cache, construct HTTP response and send it to the client.
             content = self.cache.read_from_cache(path)
-            len = os.path.getsize(path)
+            length = os.path.getsize(path)
             response = 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: '
-            response += str(len) + '\r\n\r\n' + content
+            response += str(length) + '\r\n\r\n' + content
             try:
-                sock.sendto(response, addr)
+                print("Cache hit!")
+                sock.sendall(response)
             except:
                 sys.exit("Failed to send cached response to client.")
         else:
@@ -173,14 +174,19 @@ class HTTPServer:
                 headers = r.headers.items()
                 for h in headers:
                     # Add the origin's response's headers to my response
-                    response += str(h[0]) + ': ' + str(h[1]) + '\r\n'
+                    if h[0] != 'Content-Length':
+                        response += str(h[0]) + ': ' + str(h[1]) + '\r\n'
+                    else:
+                        c = str(r.content)
+                        length = len(c)
+                        response += 'Content-Length: ' + str(length) + '\r\n'
                 response += '\r\n'
                 response += r.content
                 self.cache.update_cache(path, r.content)
-                sock.sendto(response, addr)
+                sock.sendall(response)
             else:
                 response = 'HTTP/1.1 404 Not Found'
-                sock.sendto(response, addr)
+                sock.sendall(response)
 
         sock.close()
 
