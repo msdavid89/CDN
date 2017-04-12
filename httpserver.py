@@ -10,13 +10,28 @@ MAX_CACHE = 9 * 1024 * 1024  # May need to adjust this, but assume we have 9 MB 
 
 
 class CacheHandler:
-    def __init__(self):
+    def __init__(self, dns_port):
+        self.dns_port = dns_port
         self.cache = {}  # Dictionary of file path: file size
         self.available_space = MAX_CACHE
         self.cache_directory = os.getcwd() + '/wiki_cache'
         self.cache_lock = thread.allocate_lock()
         self.space_lock = thread.allocate_lock()
         self.load_local_cache(self.cache_directory)
+        try:
+            # Create socket for DNS Server connection, used for active measurements
+            # and/or passing cache info to DNS server.
+            self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.dns_port))
+            self.dns_sock_lock = thread.allocate_lock()
+        except:
+            sys.exit("Failed to connect to DNS Server.")
+
+    def handle_dns(self):
+        """The thread in this function will be passing caching info
+            to the DNS Server so that the DNS Server can pick the best replicas."""
+        while True:
+            pass
 
     def load_local_cache(self, path):
         """This is used to restore the cache dictionary when the server is restarted."""
@@ -27,7 +42,7 @@ class CacheHandler:
             file_name = path + '/' + f
             print("file_name: " + file_name)
             if os.path.isdir(file_name):
-                self.load_local_cache(file_name + '/')
+                self.load_local_cache(file_name)
             elif os.path.isfile(file_name):
                 size = os.path.getsize(file_name)
                 self.space_lock.acquire()
@@ -133,16 +148,7 @@ class HTTPServer:
     def __init__(self, port, origin):
         self.port = port
         self.origin = origin
-        self.cache = CacheHandler()
-        try:
-            # Create socket for DNS Server connection, used for active measurements
-            # and/or passing cache info to DNS server.
-            x = 1
-            #self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            #self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.port))
-            #thread.start_new_thread(self.handle_dns)
-        except:
-            sys.exit("Failed to connect to DNS Server.")
+        self.cache = CacheHandler(self.port)
         try:
             # Create socket that connects replica to origin server
             self.origin_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -158,11 +164,6 @@ class HTTPServer:
         except:
             sys.exit("Failed to create socket.")
 
-    def handle_dns(self):
-        """The thread in this function will be passing active measurement info
-            to the DNS Server so that the DNS Server can pick the best replicas."""
-        while True:
-            pass
 
     def run_server(self):
         """Accept new connections, and pass the new socket and client address to

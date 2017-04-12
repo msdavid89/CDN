@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Origin Server: ec2-54-166-234-74.compute-1.amazonaws.com
 import sys
 import socket
 import struct
@@ -9,7 +10,7 @@ import thread
 class CDNLogic:
 
     def __init__(self, port, ip_addr):
-        self.EC2_HOSTS = {'ec2-54-166-234-74.compute-1.amazonaws.com':'54.166.234.74',
+        self.EC2_HOSTS = {
              'ec2-52-90-80-45.compute-1.amazonaws.com':'52.90.80.45',
              'ec2-54-183-23-203.us-west-1.compute.amazonaws.com':'54.183.23.203',
              'ec2-54-70-111-57.us-west-2.compute.amazonaws.com':'54.70.111.57',
@@ -19,30 +20,31 @@ class CDNLogic:
              'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com':'52.62.198.57',
              'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com':'52.192.64.163',
              'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com':'54.233.152.60'}
-        self.coords = {'54.166.234.74':[39.0437,-77.4875],
-                       '52.90.88.45':[39.0437,-77.4875],
-                       '54.183.23.203':[37.7749,-122.4194],
-                       '54.70.111.57':[45.5234,-122.6762],
-                       '52.215.87.82':[53.3440,-6.2672],
-                       '52.28.249.79':[50.1155,8.6842],
-                       '54.169.10.54':[1.2897,103.8501],
-                       '52.62.198.57':[-33.8679,151.2073],
-                       '52.192.64.163':[35.6895,139.6917],
-                       '54.233.152.60':[-23.5475,-46.6361]}
+        self.coords = {
+                       '52.90.80.45':[39.0437,-77.4875], # N. Virginia
+                       '54.183.23.203':[37.7749,-122.4194], # N. California
+                       '54.70.111.57':[45.5234,-122.6762], # Oregon
+                       '52.215.87.82':[53.3440,-6.2672], # Ireland
+                       '52.28.249.79':[50.1155,8.6842], # Frankfurt
+                       '54.169.10.54':[1.2897,103.8501], # Singapore
+                       '52.62.198.57':[-33.8679,151.2073], # Sydney
+                       '52.192.64.163':[35.6895,139.6917], # Tokyo
+                       '54.233.152.60':[-23.5475,-46.6361]} # Sao Paolo
         self.port = port
         self.my_ip = ip_addr
         try:
             self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.replica_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.replica_sock.bind((self.my_ip, self.port))
             self.replica_sock.listen(10)
-            thread.start_new_thread(self.http)
+            thread.start_new_thread(self.http, ())
         except:
             sys.exit("Failed to create replica server socket.")
 
 
 
     def find_best_replica(self, client_addr):
-        return '52.90.88.45'
+        return '52.90.80.45'
 
     def http(self):
         """Server loop accepting connections from replicas."""
@@ -56,6 +58,7 @@ class CDNLogic:
     def http_handler(self, sock, addr):
         """Handles communication from replica servers. Receive information about
             cache updates and/or active measurements."""
+        print("Handling connection " + str(sock) + " at address " + str(addr))
         while True:
             pass
     
