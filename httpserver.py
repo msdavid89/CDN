@@ -13,9 +13,37 @@ class CacheHandler:
     def __init__(self):
         self.cache = {}  # Dictionary of file path: file size
         self.available_space = MAX_CACHE
-        self.cache_directory = os.getcwd() + '/wiki/'
+        self.cache_directory = os.getcwd() + '/wiki_cache'
         self.cache_lock = thread.allocate_lock()
         self.space_lock = thread.allocate_lock()
+        self.load_local_cache(self.cache_directory)
+
+    def load_local_cache(self, path):
+        """This is used to restore the cache dictionary when the server is restarted."""
+        if not os.path.exists(path):
+            os.mkdir(path)
+            return
+        for f in os.listdir(path):
+            file_name = path + '/' + f
+            print("file_name: " + file_name)
+            if os.path.isdir(file_name):
+                self.load_local_cache(file_name + '/')
+            elif os.path.isfile(file_name):
+                size = os.path.getsize(file_name)
+                self.space_lock.acquire()
+                if self.available_space < size:
+                    # remove this file
+                    self.space_lock.release()
+                    os.remove(file_name)
+                else:
+                    self.space_lock.release()
+                    self.cache_lock.acquire()
+                    self.cache[file_name] = size
+                    self.cache_lock.release()
+                    self.space_lock.acquire()
+                    self.available_space -= size
+                    self.space_lock.release()
+
 
     def update_cache(self, path, contents):
         """Entry point for HTTP Server code. Checks the size available and adds file
@@ -26,13 +54,17 @@ class CacheHandler:
         self.space_lock.acquire()
         if size < self.available_space:
             self.space_lock.release()
-            self.add_to_cache(path, contents)
+            self.add_to_cache(self.cache_directory + path, contents)
 
 
     def check_cache(self, path):
         """Checks if a given path is already saved in our cache. If so, return true."""
+        path = self.cache_directory + path
         self.cache_lock.acquire()
+        print("Path: " + path)
+        print("Cache: " + str(self.cache))
         if path in self.cache:
+            print("Match!")
             self.cache_lock.release()
             return True
         self.cache_lock.release()
@@ -43,8 +75,10 @@ class CacheHandler:
             of a given file to the location specified by path."""
         try:
             dir = os.path.dirname(path)
-            os.makedirs(dir)
+            print("dir: " + dir)
+            os.mkdir(dir)
         except:
+            print("File already exists?")
             return False  # File may already exist at this path
         try:
             file = open(path, 'w')
@@ -53,11 +87,14 @@ class CacheHandler:
             try:
                 # Update cache and cache size to reflect new file
                 size = os.path.getsize(path)
+                print("Size: " + str(size))
                 self.cache_lock.acquire()
                 self.cache[path] = size
+                print("Cache: " + str(self.cache))
                 self.cache_lock.release()
                 self.space_lock.acquire()
                 self.available_space -= size
+                print("Space available: " + str(self.available_space))
                 self.space_lock.release()
             except:
                 return False
@@ -68,6 +105,7 @@ class CacheHandler:
     def read_from_cache(self, path):
         """Once we know a file exists in the cache, read that file from its path and
             return its contents."""
+        path = self.cache_directory + path
         try:
             file = open(path, 'r')
             contents = file.read()
@@ -78,6 +116,7 @@ class CacheHandler:
 
     def remove_from_cache(self, path):
         """Given a file path, remove that file from the disk cache and update space available."""
+        path = self.cache_directory + path
         try:
             os.remove(path)
             self.cache_lock.acquire()
@@ -156,7 +195,9 @@ class HTTPServer:
         if self.cache.check_cache(path):
             # Get content from cache, construct HTTP response and send it to the client.
             content = self.cache.read_from_cache(path)
-            length = os.path.getsize(path)
+            print("Read from cache.")
+            length = os.path.getsize(self.cache.cache_directory + path)
+            print("Got cache size.")
             response = 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: '
             response += str(length) + '\r\n\r\n' + content
             try:
@@ -173,7 +214,8 @@ class HTTPServer:
                 response = 'HTTP/1.1 200 OK\r\n'
                 headers = r.headers.items()
                 for h in headers:
-                    # Add the origin's response's headers to my response
+                    # Add the origin's response's headers to my response. Need to adjust
+                    # content length returned from origin to reflect actual size of file.
                     if h[0] != 'Content-Length':
                         response += str(h[0]) + ': ' + str(h[1]) + '\r\n'
                     else:
