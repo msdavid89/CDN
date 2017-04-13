@@ -6,6 +6,7 @@ import thread
 import os
 import requests
 import json
+import csv
 
 MAX_CACHE = 9 * 1024 * 1024  # May need to adjust this, but assume we have 9 MB available
 
@@ -14,11 +15,13 @@ class CacheHandler:
     def __init__(self, dns_port):
         self.dns_port = dns_port
         self.cache = {}  # Dictionary of file path: file size
+        self.popularity = {} # Dictionary of file path: popularity as # of hits from CSV
         self.available_space = MAX_CACHE
         self.cache_directory = os.getcwd() + '/wiki_cache'
         self.cache_lock = thread.allocate_lock()
         self.space_lock = thread.allocate_lock()
         self.load_local_cache(self.cache_directory)
+        self.load_popularity_from_csv()
         try:
             # Create socket for DNS Server connection, used for active measurements
             # and/or passing cache info to DNS server.
@@ -46,6 +49,22 @@ class CacheHandler:
             print("Failed to update DNS Server about cache change.")
         finally:
             self.dns_sock_lock.release()
+
+    def load_popularity_from_csv(self):
+        """Fills in the popularity dictionary using a CSV file with names and hit rates."""
+        try:
+            csv_file = open('cdn_popularity.csv', 'r')
+        except:
+            print("Failed to open csv popularity file (cdn_popularity.csv).")
+            return False
+        try:
+            reader = csv.reader(csv_file)
+            for row in reader:
+                self.popularity[row[0]] = int(row[1])
+            csv_file.close()
+        except:
+            print("Failed to load popularity dictionary from CSV.")
+
 
 
     def load_local_cache(self, path):
