@@ -6,30 +6,50 @@ import struct
 import argparse
 from random import randint
 import thread
+import json
+import re
+import requests
+
+# Regular Expressions for private network address check
+lo = re.compile("^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+p_24 = re.compile("^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+p_20 = re.compile("^192\.168\.\d{1,3}.\d{1,3}$")
+p_16 = re.compile("^172.(1[6-9]|2[0-9]|3[0-1]).[0-9]{1,3}.[0-9]{1,3}$")
 
 class CDNLogic:
 
     def __init__(self, port, ip_addr):
         self.EC2_HOSTS = {
-             'ec2-52-90-80-45.compute-1.amazonaws.com':'52.90.80.45',
-             'ec2-54-183-23-203.us-west-1.compute.amazonaws.com':'54.183.23.203',
-             'ec2-54-70-111-57.us-west-2.compute.amazonaws.com':'54.70.111.57',
-             'ec2-52-215-87-82.eu-west-1.compute.amazonaws.com':'52.215.87.82',
-             'ec2-52-28-249-79.eu-central-1.compute.amazonaws.com':'52.28.249.79',
-             'ec2-54-169-10-54.ap-southeast-1.compute.amazonaws.com':'54.169.10.54',
-             'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com':'52.62.198.57',
-             'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com':'52.192.64.163',
-             'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com':'54.233.152.60'}
+             'ec2-52-90-80-45.compute-1.amazonaws.com': '52.90.80.45',
+             'ec2-54-183-23-203.us-west-1.compute.amazonaws.com': '54.183.23.203',
+             'ec2-54-70-111-57.us-west-2.compute.amazonaws.com': '54.70.111.57',
+             'ec2-52-215-87-82.eu-west-1.compute.amazonaws.com': '52.215.87.82',
+             'ec2-52-28-249-79.eu-central-1.compute.amazonaws.com': '52.28.249.79',
+             'ec2-54-169-10-54.ap-southeast-1.compute.amazonaws.com': '54.169.10.54',
+             'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com': '52.62.198.57',
+             'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com': '52.192.64.163',
+             'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com': '54.233.152.60'}
         self.coords = {
-                       '52.90.80.45':[39.0437,-77.4875], # N. Virginia
-                       '54.183.23.203':[37.7749,-122.4194], # N. California
-                       '54.70.111.57':[45.5234,-122.6762], # Oregon
-                       '52.215.87.82':[53.3440,-6.2672], # Ireland
-                       '52.28.249.79':[50.1155,8.6842], # Frankfurt
-                       '54.169.10.54':[1.2897,103.8501], # Singapore
-                       '52.62.198.57':[-33.8679,151.2073], # Sydney
-                       '52.192.64.163':[35.6895,139.6917], # Tokyo
-                       '54.233.152.60':[-23.5475,-46.6361]} # Sao Paolo
+                       '52.90.80.45': [39.0437,-77.4875], # N. Virginia
+                       '54.183.23.203': [37.7749,-122.4194], # N. California
+                       '54.70.111.57': [45.5234,-122.6762], # Oregon
+                       '52.215.87.82': [53.3440,-6.2672], # Ireland
+                       '52.28.249.79': [50.1155,8.6842], # Frankfurt
+                       '54.169.10.54': [1.2897,103.8501], # Singapore
+                       '52.62.198.57': [-33.8679,151.2073], # Sydney
+                       '52.192.64.163' :[35.6895,139.6917], # Tokyo
+                       '54.233.152.60' :[-23.5475,-46.6361]} # Sao Paolo
+        self.replica_caches = {
+                       '52.90.80.45': {}, # N. Virginia
+                       '54.183.23.203': {}, # N. California
+                       '54.70.111.57': {}, # Oregon
+                       '52.215.87.82': {}, # Ireland
+                       '52.28.249.79': {}, # Frankfurt
+                       '54.169.10.54': {}, # Singapore
+                       '52.62.198.57': {}, # Sydney
+                       '52.192.64.163': {}, # Tokyo
+                       '54.233.152.60': {}} # Sao Paolo
+        self.replica_cache_lock = thread.allocate_lock()
         self.port = port
         self.my_ip = ip_addr
         try:
@@ -41,10 +61,6 @@ class CDNLogic:
         except:
             sys.exit("Failed to create replica server socket.")
 
-
-
-    def find_best_replica(self, client_addr):
-        return '52.90.80.45'
 
     def http(self):
         """Server loop accepting connections from replicas."""
@@ -58,10 +74,83 @@ class CDNLogic:
     def http_handler(self, sock, addr):
         """Handles communication from replica servers. Receive information about
             cache updates and/or active measurements."""
-        print("Handling connection " + str(sock) + " at address " + str(addr))
         while True:
-            pass
-    
+            updated_cache = {}
+            received = ''
+            try:
+                received = sock.recv(65535)
+                updated_cache = json.loads(received)
+            except:
+                # Failed to receive updated cache from replica
+                break
+            if updated_cache != {}:
+                self.replica_cache_lock.acquire()
+                self.replica_caches[addr[0]] = updated_cache
+                print(self.replica_caches)
+                self.replica_cache_lock.release()
+
+    def find_best_replica(self, client_addr):
+        """Given a client IP address, finds the best replica server to serve page."""
+        # TODO: Adjust print/return statements, else, handle active measurements.
+        print("\nClient Address: " + client_addr)
+        if self.is_private(client_addr):
+            print("Private!")
+            #return '52.90.80.45'
+        #else:
+        closest_replica = self.geo_IP(client_addr)
+        print("\nClosest replica: " + closest_replica)
+        #return closest_replica
+        return '52.90.80.45'
+
+    def is_private(self, client_addr):
+        """Returns True if supplied IP address is in a private range:
+                    127.0.0.0   - 127.255.255.255
+                    10.0.0.0    - 10.255.255.255
+                    172.16.0.0  - 172.31.255.255
+                    192.168.0.0 - 192.168.255.255
+        """
+        if lo.match(client_addr) or p_24.match(client_addr) or p_20.match(client_addr) \
+                or p_16.match(client_addr):
+            return True
+        return False
+
+
+    def geo_IP(self, client_addr):
+        """Finds/returns geographically closest replica server to the client."""
+        [lat, lon] = self.get_coords(client_addr)
+        cli_coords = [lat, lon]
+        closest = ''
+        min_dist = float('inf')
+
+        for key in self.coords.keys():
+            # Check the distance between the client and each replica, and save
+            # the minimum/closest replica
+            dist = self.calc_distance(cli_coords, self.coords[key])
+            if dist < min_dist:
+                min_dist = dist
+                closest = key
+            print("Distance: " + str(dist) + " Closest: " + closest + " Key: " + key)
+        return closest
+
+
+    def get_coords(self, client_addr):
+        """Returns the latitutde and longitude of an IP address by making a request to
+            freegeoip.net"""
+        site = 'http://freegeoip.net/json/%s' % (client_addr)
+        r = requests.get(site)
+        coords_json = r.json()
+        latitude = coords_json["latitude"]
+        longitude = coords_json["longitude"]
+        return latitude, longitude
+
+    def calc_distance(self, cli, replica):
+        """Calculates geographic distance between client and replica server using their
+            latitude/longitude."""
+        a = (cli[0] - replica[0]) ** 2.0
+        b = (cli[1] - replica[1]) ** 2.0
+        dist = (a+b) ** (1.0/2.0)
+        return dist
+
 
 
 class Packet:
@@ -261,6 +350,8 @@ class DNSServer:
             best_server = self.client_locations[client[0]]
         else:
             best_server = self.cdn_logic.find_best_replica(client[0])
+            self.client_locations[client[0]] = best_server
+
         dns_response = packet.generate_answer(self.name, best_server)
 
         print('DNS Response: ' + repr(dns_response))

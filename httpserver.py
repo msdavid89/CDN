@@ -5,6 +5,7 @@ import argparse
 import thread
 import os
 import requests
+import json
 
 MAX_CACHE = 9 * 1024 * 1024  # May need to adjust this, but assume we have 9 MB available
 
@@ -30,8 +31,22 @@ class CacheHandler:
     def handle_dns(self):
         """The thread in this function will be passing caching info
             to the DNS Server so that the DNS Server can pick the best replicas."""
-        while True:
-            pass
+        to_send = {}
+        self.dns_sock_lock.acquire()
+        self.cache_lock.acquire()
+        for key in self.cache.keys():
+            # Retrieve the relative path from the absolute path contained in the local cache
+            pos = key.find('/wiki')
+            to_send[key[pos:]] = self.cache.get(key)
+        self.cache_lock.release()
+        try:
+            serialized_cache = json.dumps(to_send)
+            self.dns_sock.sendall(serialized_cache)
+        except:
+            print("Failed to update DNS Server about cache change.")
+        finally:
+            self.dns_sock_lock.release()
+
 
     def load_local_cache(self, path):
         """This is used to restore the cache dictionary when the server is restarted."""
@@ -63,13 +78,17 @@ class CacheHandler:
     def update_cache(self, path, contents):
         """Entry point for HTTP Server code. Checks the size available and adds file
             to cache if possible."""
-        # TODO: Implement caching strategy
-        size = len(contents) # This might need to check for 'Content-Length'
-                             # or 'Transfer-encoding' headers to figure out
+        size = len(contents)
         self.space_lock.acquire()
-        if size < self.available_space:
+        if size <= self.available_space:
             self.space_lock.release()
             self.add_to_cache(self.cache_directory + path, contents)
+        if size > self.available_space:
+            self.space_lock.release()
+            # TODO: Implement caching strategy
+
+        # Tell DNS Server about new cache updates.
+        self.handle_dns()
 
 
     def check_cache(self, path):
@@ -89,13 +108,6 @@ class CacheHandler:
         """Saves a new file to the cache, returning True if successful. Saves the contents
             of a given file to the location specified by path."""
         try:
-            dir = os.path.dirname(path)
-            print("dir: " + dir)
-            os.mkdir(dir)
-        except:
-            print("File already exists?")
-            return False  # File may already exist at this path
-        try:
             file = open(path, 'w')
             file.write(contents)
             file.close()
@@ -112,6 +124,8 @@ class CacheHandler:
                 print("Space available: " + str(self.available_space))
                 self.space_lock.release()
             except:
+                self.cache_lock.release()
+                self.space_lock.release()
                 return False
         except:
             return False
@@ -225,8 +239,8 @@ class HTTPServer:
                         response += 'Content-Length: ' + str(length) + '\r\n'
                 response += '\r\n'
                 response += r.content
-                self.cache.update_cache(path, r.content)
                 sock.sendall(response)
+                self.cache.update_cache(path, r.content)
             else:
                 response = 'HTTP/1.1 404 Not Found'
                 sock.sendall(response)
