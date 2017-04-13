@@ -91,15 +91,15 @@ class CDNLogic:
 
     def find_best_replica(self, client_addr):
         """Given a client IP address, finds the best replica server to serve page."""
-        # TODO: Adjust print/return statements, else, handle active measurements.
+        # TODO: Adjust print/return statements, handle active measurements.
         print("\nClient Address: " + client_addr)
         if self.is_private(client_addr):
             print("Private!")
             #return '52.90.80.45'
-        #else:
-        closest_replica = self.geo_IP(client_addr)
-        print("\nClosest replica: " + closest_replica)
-        #return closest_replica
+        else:
+            closest_replica = self.geo_IP(client_addr)
+            print("\nClosest replica: " + closest_replica)
+            #return closest_replica
         return '52.90.80.45'
 
     def is_private(self, client_addr):
