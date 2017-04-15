@@ -33,7 +33,15 @@ store the contents, and if so, what might need to be removed from the cache to f
 ------------------------
 
 TODO:
-1. Implement caching logic (httpserver.py)
+
+PROBLEMS:
+-Too many requests are being returned as 404 errors, and I don't know why.
+-Sometimes files will get cached but be of 0 size, which doesn't make sense.
+-There are issues with unicode/encoding in the file names when cached.
+
+1. Implement caching logic (httpserver.py) -- currently loads popularity from a CSV file on every
+replica server. This is stupid. Instead, the DNS Server can load the popularity and send it to
+each replica when the replicas come online.
 
 2. Location-based replica servers. (dnsserver.py)
 
@@ -67,6 +75,8 @@ can get every other server's cache to update as well, since we always move towar
 cache in this project with probabilities fixed. If we have time to implement this, we will.
 ----If probabilities were not fixed, we would need to bootstrap for some period of time while
 taking measurements and figuring out which pages actually are most popular.
+---The following is pseudocode for our implementation. It requires an algorithm to find an
+optimal solution to the Knapsack Problem.
 
 If (Size_of_webpage < free_space_in_cache)
     Store webpage in cache
