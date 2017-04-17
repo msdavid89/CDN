@@ -58,7 +58,9 @@ https://www.akamai.com/us/en/multimedia/documents/technical-publication/algorith
 Our DNS and HTTP servers are multithreaded, so each new connection doesn't require waiting
 for old ones to finish. The performance is ultimately slowed a little bit because access to
 the cache needs to be protected by locks; if multiple threads read or write to the cache at
-once, chaos would ensue.
+once, chaos would ensue. We addressed this and improved the performance further by spawning a new
+thread to handle cache updates, so the server thread can close its socket and free up its
+resources instead of getting bogged down in cache locks.
 
 
 Caching algorithm - simple Least Frequently Used
