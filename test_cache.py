@@ -24,7 +24,7 @@ except:
 def wget_func(q, p, d):
     try:
         subprocess.check_output(["wget", q])
-        to_remove = directory + '/' + p
+        to_remove = d + '/' + p
         print(to_remove)
         os.remove(to_remove)
     except:
@@ -32,9 +32,11 @@ def wget_func(q, p, d):
 
 
 count = 0
-while count < 20:
+while count < 5:
     count += 1
     r = randint(0,4999)
     path = csv_list[r][0]
     query = "http://ec2-52-90-80-45.compute-1.amazonaws.com:40009/wiki/%s" % (path)
     wget_func(query, path, directory)
+
+# wget http://ec2-52-90-80-45.compute-1.amazonaws.com:40009/wiki/Mesut_%C3%96zil

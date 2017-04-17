@@ -9,6 +9,7 @@ import thread
 import json
 import re
 import requests
+import csv
 
 # Regular Expressions for private network address check
 lo = re.compile("^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
@@ -52,14 +53,31 @@ class CDNLogic:
         self.replica_cache_lock = thread.allocate_lock()
         self.port = port
         self.my_ip = ip_addr
+        self.popularity = {} # Dictionary of file paths : popularity in hits
+        #self.load_popularity_from_csv()
         try:
             self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.replica_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.replica_sock.bind((self.my_ip, self.port))
             self.replica_sock.listen(10)
-            thread.start_new_thread(self.http, ())
+            #thread.start_new_thread(self.http, ())
         except:
             sys.exit("Failed to create replica server socket.")
+
+    def load_popularity_from_csv(self):
+        """Fills in the popularity dictionary using a CSV file with names and hit rates."""
+        try:
+            csv_file = open('cdn_popularity.csv', 'r')
+        except:
+            print("Failed to open csv popularity file (cdn_popularity.csv).")
+            return False
+        try:
+            reader = csv.reader(csv_file)
+            for row in reader:
+                self.popularity[row[0]] = int(row[1])
+            csv_file.close()
+        except:
+            print("Failed to load popularity dictionary from CSV.")
 
 
     def http(self):
@@ -72,22 +90,13 @@ class CDNLogic:
                 sys.exit("Error accepting connection from replica.")
 
     def http_handler(self, sock, addr):
-        """Handles communication from replica servers. Receive information about
-            cache updates and/or active measurements."""
-        while True:
-            updated_cache = {}
-            received = ''
-            try:
-                received = sock.recv(65535)
-                updated_cache = json.loads(received)
-            except:
-                # Failed to receive updated cache from replica
-                break
-            if updated_cache != {}:
-                self.replica_cache_lock.acquire()
-                self.replica_caches[addr[0]] = updated_cache
-                print(self.replica_caches)
-                self.replica_cache_lock.release()
+        """Handles communication from replica servers. Send them popularity info."""
+        try:
+            to_send = json.dumps(self.popularity, ensure_ascii=False)
+            print(to_send)
+            sock.sendall(to_send)
+        except:
+            print("Failed to send popularity to " + str(addr))
 
     def find_best_replica(self, client_addr):
         """Given a client IP address, finds the best replica server to serve page."""
@@ -129,7 +138,6 @@ class CDNLogic:
             if dist < min_dist:
                 min_dist = dist
                 closest = key
-            print("Distance: " + str(dist) + " Closest: " + closest + " Key: " + key)
         return closest
 
 

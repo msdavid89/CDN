@@ -7,7 +7,7 @@ Responsibilities:
 
 Michael: DNS and HTTP server python code
 
-Oladipupo: Debugging
+Oladipupo: Deploy, Run, and Stop CDN scripts
 
 ------------------------
 
@@ -33,11 +33,6 @@ store the contents, and if so, what might need to be removed from the cache to f
 ------------------------
 
 TODO:
-
-PROBLEMS:
--Too many requests are being returned as 404 errors, and I don't know why.
--Sometimes files will get cached but be of 0 size, which doesn't make sense.
--There are issues with unicode/encoding in the file names when cached.
 
 1. Implement caching logic (httpserver.py) -- currently loads popularity from a CSV file on every
 replica server. This is stupid. Instead, the DNS Server can load the popularity and send it to
