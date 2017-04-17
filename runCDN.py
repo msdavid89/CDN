@@ -19,6 +19,7 @@ def validate_args():
     cdn_server = 'cs5700cdnproject.ccs.neu.edu'
     RSA_key_path = ''
     username = ''
+    resolve_name = ''
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "p:o:n:u:i:h" ,["help"])
@@ -44,24 +45,28 @@ def validate_args():
 
         elif opt in ('-i'):
             RSA_key_path = arg
+
 #recieve value from the command line and return.
-    return port_no, origin_server, cdn_server, username, RSA_key_path
+    return port_no, origin_server, cdn_server, username, RSA_key_path, resolve_name
+
 #function to run sripts (dnsserver) remotely  
-def run_dns_server(port_no, cdn_server, username, RSA_key_path):
-    run_dns = "ssh -i "+ RSA_key_path + " " + username + "@" + cdn_server + " nohup" + " python " + "dnsserver.py" +" &"
- #   print run_dns
+def run_dns_server(port_no, cdn_server, username, RSA_key_path, resolve_name):
+    run_dns = "ssh -i "+ RSA_key_path +" "+ username + "@" + cdn_server + " nohup" + " python " + "dnsserver.py -p "+ port_no + " -n "+ resolve_name + " &"
+    print run_dns
     subprocess.check_output(run_dns, shell=True)
+
+
 #    print "dnsserver running...."
 #function to run httpserver on the replicas(from the lists above).
-def run_http_servers(port_no, origin_server, username, RSA_key_path):
+def run_http_servers(port_no, origin_server, username, RSA_key_path, resolve_name):
     for replicas in replicas_servers:
-        run_http = "ssh -i "+ RSA_key_path + " " + username + "@" + replicas + " nohup" + " python " + "httpserver.py" +" &"
+        run_http = "ssh -i "+ RSA_key_path +" "+ username + "@" + cdn_server + " nohup" + " python " + "dnsserver.py -p "+ port_no + " -o "+ origin_server + " &"
 #	print run_http
         subprocess.check_output(run_http ,shell=True)
 #	print "httpserver running...."
 
 if __name__ == '__main__':
 
-    port_no, origin_server, cdn_server, username, RSA_key_path = validate_args()
-    run_dns_server(port_no, cdn_server, username, RSA_key_path)
-    run_http_servers(port_no, origin_server, username, RSA_key_path)
+    port_no, origin_server, cdn_server, username, RSA_key_path, resolve_name = validate_args()
+    run_dns_server(port_no, cdn_server, username, RSA_key_path, resolve_name)
+    run_http_servers(port_no, origin_server, username, RSA_key_path, resolve_name)

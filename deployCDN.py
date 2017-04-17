@@ -50,7 +50,8 @@ def validate_args():
 #this function copies "dnsserver" & 'cdn_popularity.cvs' scripts to the remote host 'cs5700cdnproject.ccs.neu.edu"
 def deploy_dns_server(RSA_key, username, cdn_server):
 #this is the formated command that does it. 
-    command_2 = "scp -i " + RSA_key + "  dnsserver.py  " + " cdn_popularity.cvs "+ username + "@" + cdn_server + ":/home/" + username + "/"
+    command_2 = "scp -i " + RSA_key + "  dnsserver.py  " + " cdn_popularity.csv "+ username + "@" + cdn_server + ":/home/" + username + "/"
+    print command_2
     subprocess.check_output(command_2, shell = True)
 #function to copy httpserver script to all replica servers listed above. 
 def deploy_http_server(RSA_key, username, replicas_servers):
