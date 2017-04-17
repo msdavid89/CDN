@@ -1,10 +1,38 @@
 #!/usr/bin/python
 # Origin Server: ec2-54-166-234-74.compute-1.amazonaws.com
+
+"""        self.EC2_HOSTS = {
+             'ec2-52-90-80-45.compute-1.amazonaws.com': '52.90.80.45',
+             'ec2-54-183-23-203.us-west-1.compute.amazonaws.com': '54.183.23.203',
+             'ec2-54-70-111-57.us-west-2.compute.amazonaws.com': '54.70.111.57',
+             'ec2-52-215-87-82.eu-west-1.compute.amazonaws.com': '52.215.87.82',
+             'ec2-52-28-249-79.eu-central-1.compute.amazonaws.com': '52.28.249.79',
+             'ec2-54-169-10-54.ap-southeast-1.compute.amazonaws.com': '54.169.10.54',
+             'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com': '52.62.198.57',
+             'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com': '52.192.64.163',
+             'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com': '54.233.152.60'}
+
+        self.replica_caches = {
+                       '52.90.80.45': {}, # N. Virginia
+                       '54.183.23.203': {}, # N. California
+                       '54.70.111.57': {}, # Oregon
+                       '52.215.87.82': {}, # Ireland
+                       '52.28.249.79': {}, # Frankfurt
+                       '54.169.10.54': {}, # Singapore
+                       '52.62.198.57': {}, # Sydney
+                       '52.192.64.163': {}, # Tokyo
+                       '54.233.152.60': {}} # Sao Paolo
+        self.replica_cache_lock = thread.allocate_lock()
+
+"""
+
+
+
 import sys
 import socket
 import struct
 import argparse
-from random import randint
+from random import randint, choice
 import thread
 import json
 import re
@@ -20,16 +48,6 @@ p_16 = re.compile("^172.(1[6-9]|2[0-9]|3[0-1]).[0-9]{1,3}.[0-9]{1,3}$")
 class CDNLogic:
 
     def __init__(self, port, ip_addr):
-        self.EC2_HOSTS = {
-             'ec2-52-90-80-45.compute-1.amazonaws.com': '52.90.80.45',
-             'ec2-54-183-23-203.us-west-1.compute.amazonaws.com': '54.183.23.203',
-             'ec2-54-70-111-57.us-west-2.compute.amazonaws.com': '54.70.111.57',
-             'ec2-52-215-87-82.eu-west-1.compute.amazonaws.com': '52.215.87.82',
-             'ec2-52-28-249-79.eu-central-1.compute.amazonaws.com': '52.28.249.79',
-             'ec2-54-169-10-54.ap-southeast-1.compute.amazonaws.com': '54.169.10.54',
-             'ec2-52-62-198-57.ap-southeast-2.compute.amazonaws.com': '52.62.198.57',
-             'ec2-52-192-64-163.ap-northeast-1.compute.amazonaws.com': '52.192.64.163',
-             'ec2-54-233-152-60.sa-east-1.compute.amazonaws.com': '54.233.152.60'}
         self.coords = {
                        '52.90.80.45': [39.0437,-77.4875], # N. Virginia
                        '54.183.23.203': [37.7749,-122.4194], # N. California
@@ -40,20 +58,9 @@ class CDNLogic:
                        '52.62.198.57': [-33.8679,151.2073], # Sydney
                        '52.192.64.163' :[35.6895,139.6917], # Tokyo
                        '54.233.152.60' :[-23.5475,-46.6361]} # Sao Paolo
-        self.replica_caches = {
-                       '52.90.80.45': {}, # N. Virginia
-                       '54.183.23.203': {}, # N. California
-                       '54.70.111.57': {}, # Oregon
-                       '52.215.87.82': {}, # Ireland
-                       '52.28.249.79': {}, # Frankfurt
-                       '54.169.10.54': {}, # Singapore
-                       '52.62.198.57': {}, # Sydney
-                       '52.192.64.163': {}, # Tokyo
-                       '54.233.152.60': {}} # Sao Paolo
-        self.replica_cache_lock = thread.allocate_lock()
         self.port = port
         self.my_ip = ip_addr
-        self.popularity = {} # Dictionary of file paths : popularity in hits
+        #self.popularity = {} # Dictionary of file paths : popularity in hits
         #self.load_popularity_from_csv()
         try:
             self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -63,6 +70,7 @@ class CDNLogic:
             #thread.start_new_thread(self.http, ())
         except:
             sys.exit("Failed to create replica server socket.")
+
 
     def load_popularity_from_csv(self):
         """Fills in the popularity dictionary using a CSV file with names and hit rates."""
@@ -100,16 +108,14 @@ class CDNLogic:
 
     def find_best_replica(self, client_addr):
         """Given a client IP address, finds the best replica server to serve page."""
-        # TODO: Adjust print/return statements, handle active measurements.
-        print("\nClient Address: " + client_addr)
+        # TODO: handle active measurements.
         if self.is_private(client_addr):
-            print("Private!")
-            #return '52.90.80.45'
+            print("Private IP, use random replica.")
+            return choice(self.coords.keys())
         else:
             closest_replica = self.geo_IP(client_addr)
             print("\nClosest replica: " + closest_replica)
-            #return closest_replica
-        return '52.90.80.45'
+            return closest_replica
 
     def is_private(self, client_addr):
         """Returns True if supplied IP address is in a private range:
@@ -317,7 +323,7 @@ class DNSServer:
         self.port = port
         self.my_ip = self.get_ipaddr()
         self.cdn_logic = CDNLogic(self.port, self.my_ip)
-        self.client_locations = {}
+        self.client_locations = {} # Stores mappings from clients to their closest replica
         self.sock = -1
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -342,7 +348,6 @@ class DNSServer:
                 thread.start_new_thread(self.handle_request, (request, client))
             except:
                 sys.exit("Error receiving data or creating thread.")
-        #self.sock.close()
 
     def handle_request(self, request, client):
         """Processes the data for a given DNS request/thread. Based on the request,
@@ -351,9 +356,6 @@ class DNSServer:
         packet = Packet()
         packet.parse_question(request)
 
-        print("Request: " + repr(request))
-        packet.debug()
-
         if client[0] in self.client_locations:
             best_server = self.client_locations[client[0]]
         else:
@@ -361,9 +363,6 @@ class DNSServer:
             self.client_locations[client[0]] = best_server
 
         dns_response = packet.generate_answer(self.name, best_server)
-
-        print('DNS Response: ' + repr(dns_response))
-        packet.debug()
 
         try:
             self.sock.sendto(dns_response, client)
