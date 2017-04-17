@@ -125,6 +125,9 @@ Challenges:
 
 3. The scripts and testing in a distributed environment.
 
+4. I ran into a lot of problems in testing that may have been because someone was hogging
+the origin server's CPU resources.
+
 -------------------------
 
 
