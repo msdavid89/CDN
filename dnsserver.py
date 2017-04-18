@@ -62,18 +62,18 @@ class CDNLogic:
         self.my_ip = ip_addr
         #self.popularity = {} # Dictionary of file paths : popularity in hits
         #self.load_popularity_from_csv()
-        try:
-            self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.replica_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.replica_sock.bind((self.my_ip, self.port))
-            self.replica_sock.listen(10)
-            #thread.start_new_thread(self.http, ())
-        except:
-            sys.exit("Failed to create replica server socket.")
+        #try:
+        #    self.replica_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #    self.replica_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #    self.replica_sock.bind((self.my_ip, self.port))
+        #    self.replica_sock.listen(10)
+        #    thread.start_new_thread(self.http, ())
+        #except:
+        #    sys.exit("Failed to create replica server socket.")
 
 
     def load_popularity_from_csv(self):
-        """Fills in the popularity dictionary using a CSV file with names and hit rates."""
+        """Fills in the popularity dictionary using a CSV file with names and hit rates.
         try:
             csv_file = open('cdn_popularity.csv', 'r')
         except:
@@ -86,25 +86,31 @@ class CDNLogic:
             csv_file.close()
         except:
             print("Failed to load popularity dictionary from CSV.")
-
+        """
+        pass
 
     def http(self):
-        """Server loop accepting connections from replicas."""
+        """Server loop accepting connections from replicas.
         while True:
             try:
                 rep_sock, addr = self.replica_sock.accept()
                 thread.start_new_thread(self.http_handler, (rep_sock, addr))
             except:
                 sys.exit("Error accepting connection from replica.")
+        """
+        pass
 
     def http_handler(self, sock, addr):
-        """Handles communication from replica servers. Send them popularity info."""
+        """Handles communication from replica servers. Send them popularity info.
+        
         try:
             to_send = json.dumps(self.popularity, ensure_ascii=False)
             print(to_send)
             sock.sendall(to_send)
         except:
             print("Failed to send popularity to " + str(addr))
+        """
+        pass
 
     def find_best_replica(self, client_addr):
         """Given a client IP address, finds the best replica server to serve page."""
@@ -334,7 +340,7 @@ class DNSServer:
     def get_ipaddr(self):
         """Find IP address of the local machine."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('cs5700cdnproject.ccs.neu.edu', 80))
+        s.connect(('', 80)) # cs5700cdnproject.ccs.neu.edu
         ip = s.getsockname()[0]
         s.close()
         return ip

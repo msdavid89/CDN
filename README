@@ -37,6 +37,7 @@ TODO:
 1. Implement caching logic (httpserver.py) -- currently loads popularity from a CSV file on every
 replica server. This is stupid. Instead, the DNS Server can load the popularity and send it to
 each replica when the replicas come online.
+---Also, we don't use an in-memory cache.
 
 2. Location-based replica servers. (dnsserver.py)
 

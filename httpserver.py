@@ -6,7 +6,7 @@ import thread
 from threading import RLock
 import os
 import requests
-import json
+#import json
 import csv
 from urllib import quote
 
@@ -27,21 +27,21 @@ class CacheHandler:
         self.constraints_lock = thread.allocate_lock()
         self.load_local_cache(self.cache_directory)
         self.load_popularity_from_csv()
-        try:
+        #try:
             # Create socket for DNS Server connection, used for active measurements
             # and/or passing cache info to DNS server.
-            self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.dns_port))
-            self.dns_sock_lock = thread.allocate_lock()
-        except:
-            sys.exit("Failed to connect to DNS Server.")
+        #    self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #    self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.dns_port))
+        #    self.dns_sock_lock = thread.allocate_lock()
+        #except:
+        #    sys.exit("Failed to connect to DNS Server.")
         #self.handle_dns()
         self.update_constraints()
 
     def handle_dns(self):
         """The thread in this function will be passing caching info
-            to the DNS Server so that the DNS Server can pick the best replicas."""
-        """
+            to the DNS Server so that the DNS Server can pick the best replicas.
+        
         try:
             received = self.dns_sock.recv(65535)
             print(received)
