@@ -340,7 +340,7 @@ class DNSServer:
     def get_ipaddr(self):
         """Find IP address of the local machine."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('', 80)) # cs5700cdnproject.ccs.neu.edu
+        s.connect(('cs5700cdnproject.ccs.neu.edu', 80)) # cs5700cdnproject.ccs.neu.edu
         ip = s.getsockname()[0]
         s.close()
         return ip
