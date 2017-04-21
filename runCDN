@@ -51,9 +51,9 @@ def validate_args():
 
 #function to run sripts (dnsserver) remotely  
 def run_dns_server(port, cdn_server, username, RSA_key_path, name):
-    run_dns = "ssh -i "+ RSA_key_path +" "+ username + "@" + cdn_server + " nohup" + " python " + "dnsserver -p "+ port + " -n "+ name + " </dev/null &>/dev/null &"
+    run_dns = "ssh -i "+ RSA_key_path +" "+ username + "@" + cdn_server + " nohup"  + " ./dnsserver -p "+ port + " -n "+ name + " &"
   #  print run_dns
-    subprocess.check_output(run_dns, shell=True)
+    subprocess.call(run_dns, shell=True)
 
 
 #    print "dnsserver running...."
@@ -61,10 +61,9 @@ def run_dns_server(port, cdn_server, username, RSA_key_path, name):
 
 def run_http_servers(port, origin_server, username, RSA_key_path):
     for replicas in replicas_servers:
-        run_http = "ssh -i "+ RSA_key_path +" "+ username + "@" + replicas + " nohup" + " python " + "httpserver -p "+ port + " -o "+ origin_server + " </dev/null &>/dev/null &"
-#	print run_http
-        subprocess.check_output(run_http, shell=True)
-#	print replicas + "running...."
+        run_http = "ssh -i "+ RSA_key_path +" "+ username + "@" + replicas + " nohup" + " ./httpserver -p "+ port + " -o "+ origin_server + " &"
+        subprocess.call(run_http, shell=True)
+	print replicas + " running...."
 
 if __name__ == '__main__':
 
