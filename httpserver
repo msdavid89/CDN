@@ -34,7 +34,7 @@ class CacheHandler:
         #    self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.dns_port))
         #    self.dns_sock_lock = thread.allocate_lock()
         #except:
-        #    sys.exit("Failed to connect to DNS Server.")
+        #    sys.exit("Failed to connect to DNS Server...")
         #self.handle_dns()
         self.update_constraints()
 
@@ -282,7 +282,7 @@ class HTTPServer:
             self.serv_sock.bind(('', self.port))
             self.serv_sock.listen(30)
         except:
-            sys.exit("Failed to create socket.")
+            sys.exit("Failed to create socket....")
 
 
     def run_server(self):
