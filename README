@@ -1,11 +1,10 @@
 CS5700 Project 5: CDN
 http://david.choffnes.com/classes/cs4700sp17/project5.php
-
 ------------------------
 
 Responsibilities:
 
-Michael: DNS and HTTP server python code
+Michael: DNS and replica server python code, this README
 
 Oladipupo: Deploy, Run, and Stop CDN scripts
 
@@ -16,122 +15,147 @@ High-Level Approach:
 The DNS server is broken down into three logical classes. First, there is DNSServer class which
 handles the networking aspects and the control flow for the program. There is a Packet class that
 handles the DNS protocol specifics, such as parsing the questions that the server is asked and
-generating an answer to respond with. Finally, there is a CDNLogic class. This class is mostly
-empty at the time of the milestone, but will be used to determine which replica server the HTTP
-clients should be referred to.
+generating an answer to respond with. Finally, there is a CDNLogic class. This class was mostly
+empty at the time of the milestone, but is now used to determine which replica server the HTTP
+clients should be referred to. It uses the IP-geolocation method, and queries a free online IP
+location service to get coordinates.
 
 The HTTP server has two classes: the server and the cache. The HTTPServer class does most of the
-work. It establishes sockets to the DNS server, the Origin server, and has a listening socket
+work. It establishes sockets to the Origin server and has a listening socket
 for connections to HTTP clients. After receiving an HTTP request, the server checks to see if
 the requested file is stored in the local cache. If it is, then the server returns it to the
-client. If not, the server queries the Origin server for the file (currently using the requests
-library, though this may change). The response from the Origin server is then forwarded to the
-HTTP client. The response is also passed to the Cache class, which can decide whether or not to
-store the contents, and if so, what might need to be removed from the cache to free up space.
-
-
-------------------------
-
-TODO:
-
---Verify the PATH methodology. I think some paths may be getting cut off or are messed up
-by starting with a number or something.
-
-1. Implement caching logic (httpserver.py) -- currently loads popularity from a CSV file on every
-replica server. This is stupid. Instead, the DNS Server can load the popularity and send it to
-each replica when the replicas come online.
----Also, we don't use an in-memory cache.
-
-2. Location-based replica servers. (dnsserver.py)
-
-3. Active measurement for replica servers (both)
-
-4. Ensure thread safety (both)
-
-5. Create Deploy/Run/Stop scripts
+client. If not, the server queries the Origin server for the file using the requests library.
+The response from the Origin server is then forwarded to the HTTP client. The response is also
+passed to the Cache class, which can decide whether or not to store the contents, and if so,
+what might need to be removed from the cache to free up space.
 
 ------------------------
 
 Performance Enhancing Tricks:
 
 Note: We did not employ the techniques in this paper, but did find it instructive for thinking
-about the kinds of performance issues involved in running a CDN:
+about the kinds of performance issues involved in running a CDN (it might be a useful reading
+for future classes):
 https://www.akamai.com/us/en/multimedia/documents/technical-publication/algorithmic-nuggets-in-content-delivery-technical-publication.pdf
 
 
+Multithreading:
+
 Our DNS and HTTP servers are multithreaded, so each new connection doesn't require waiting
 for old ones to finish. The performance is ultimately slowed a little bit because access to
-the cache needs to be protected by locks; if multiple threads read or write to the cache at
+the cache needs to be protected by locks; if multiple threads were to write to the cache at
 once, chaos would ensue. We addressed this and improved the performance further by spawning a new
 thread to handle cache updates, so the server thread can close its socket and free up its
-resources instead of getting bogged down in cache locks.
+resources instead of getting bogged down in cache locks. We also found a way to safely avoid
+needing to acquire locks before reads to the cache, which dramatically improved performance.
 
 
-Caching algorithm - simple Least Frequently Used
+Caching:
 
---Since we are given the probabilities from the outset, we do not need to take measurements, as
-a normal web caching system would.
---We can try using a "cache everywhere" strategy. When one HTTP server's cache is updated, we
-can get every other server's cache to update as well, since we always move towards a "better"
-cache in this project with probabilities fixed. If we have time to implement this, we will.
-----If probabilities were not fixed, we would need to bootstrap for some period of time while
-taking measurements and figuring out which pages actually are most popular.
----The following is pseudocode for our implementation. It requires an algorithm to find an
+While we understand that we were allowed to pre-cache files, we felt that this would diverge
+somewhat from what a real CDN would do in practice. In real life, the CDN would need to measure
+the popularity of content, and content preferences may differ among different clusters of
+replicas. We are provided the popularity of files from the outset and are spared of this
+difficulty, but wanted to consider the possiblity that a static cache might not comport to
+the whims of clients. Nevertheless, we understand that our caching algorithm could have been
+applied to the content in advance to determine an optimal cache.
+
+The following is pseudocode for our implementation. It requires an algorithm to find an
 optimal solution to the Knapsack Problem.
 
-If (Size_of_webpage < free_space_in_cache)
+If (Size_of_webpage < free_space_in_cache):
     Store webpage in cache
-Else
-    Find the lowest cumulative probability that can be uncached in order to cache new page
-    If (cumulative_probability < probability_of_new_webpage)
+Else:
+    Find the lowest cumulative popularity that can be uncached in order to cache new page
+    If (cumulative_popularity < popularity_of_new_webpage):
         Remove pages from cache
         Cache new page
 
+Michael's background is math, and the linear optimization involved in solving the Knapsack
+Problem was not too challenging, the actual implementation proved to be more difficult. In the
+end, we went with a dynamic programming approach, and recursively solved the Knapsack Problem
+for subsets of possible caches. To do this, we needed to maintain a separate constraints
+dictionary, mapping filepath names to tuples of the size and popularity of the file. Before
+running the algorithm, we would update our constraints to include not just the current cache,
+but the proposed additional page. Technically, we created a copy of the constraints dictionary
+but made it a list of tuples, so that the constraints lock could be held for as short a time
+as possible and to simplify the syntax of our implementation.
 
-Server Selection Strategy - Initially location based, but we intend to use active measurement
-to optimize performance.
 
----Network latency (RTT) is the primary network performance issue, since these will be
-low-bandwidth HTTP requests.
----Ideally, our server selection strategy would take into account which replicas already have
-which data cached. It is likely that a server from further away or with longer RTT will still
-provide a faster response if it has a cached copy of the file. To implement this, we can have
-a consistent approach to caching across replicas, and have the DNS CDNLogic include a mapping
-of the replicas to their expected caches. We can allow a brief period of bootstrapping based
-on other metrics, and then go based on expected cache. If multiple replicas have the file in
-their cache, we can break the tie with location/best RTT. We have to be careful not to get
-"stuck" using replicas with bad response times, and not to spend too much time processing.
----Active measurements can be done using scamper, taking measurements no more than once per
-second. The HTTP servers take these measurements and pass them to the DNS server, which applies
-a formula to determine the best server to use. For instance, a weighted average:
-            new_metric = .6*old_metric + .4*new_observation;
----Alternatively, since this is a "trusted" environment, we can rely on the servers to aggregate
-this information and pass it to the DNS server less frequently. Perhaps the HTTP server takes 60
-samples, calculates the average, and passes it to the DNS server, which gets new rankings every
-minute.
----If we have sufficient time to test, the best solution might be to come up with an algorithm
-that includes geographic location, RTT, and the expected cache. We do not know what the optimal
-algorithm would be, but perhaps each server (i) can receive a weighted score in the form of:
-        Latency_i = # of replicas with worse RTT
-        Distance_i = 5 for the closest three replicas, 2 for the next three, and 0 for the rest
-        Cache_i = 5 if file is expected in the cache, 0 otherwise
-        Score_i = Latency_i + Distance_i + Cache_i
-The highest score wins.
+Server Selection Strategy:
 
+Our server selection methodology is the weak point in our CDN, because we only used the simple
+geographical-IP mapping strategy that is known to be rather flawed. This was the simplest to
+implement and test, and we did not have time to implement a better solution. Unfortunately,
+it does not take into account network latency, as an actual active-measurements scheme would.
+In general, it does not adapt to changing network conditions or recognize that different replicas
+may have more congested or lower capacity links.
+
+It is worth mentioning a strategy that we attempted to implement but realized does not work
+in the context of this project. One of the most important factors in the performance of serving
+an HTTP request is whether the HTTP server has the content cached. As such, we had implemented
+(now removed from our code) a communications channel between the DNS server and replica servers
+for the replicas to continuously pass a list of their cached content to the DNS server so that
+the DNS server could direct clients to replicas that already have their request cached. This
+required a period of bootstrapping, since replicas needed to build their caches. It also
+would have randomly chosen to go to a different replica on occasion, such that one particular
+replica wouldn't get overloaded with requests for the Main_Page when others were idle, and would
+allow the selection to adapt to changes. Unfortunately, our DNS server doesn't know what path
+the client is requesting.
 
 -------------------------
 
 Challenges:
 
-1. Initially, getting the servers to work at all.
+1. Managing multiple threads was tricky, especially when trying to balance performance with
+using synchronization primitives to avoid race conditions. At first, we used basic locks, but
+the cache_lock caused deadlock upon implementing our cache optimization algorithm. This was
+due to reentrancy. After testing, it was determined that using the threading module's RLock()
+primitive provided better performance than creating larger critical sections by moving locks
+around to avoid reentrancy altogether.
 
-2. Thread safety can be tricky.
+2. We ran into a lot of problems in testing that may have been because someone was hogging
+the origin server's CPU resources. This wasted about a day of Michael's life :(
 
-3. The scripts and testing in a distributed environment.
+3. Encoding caused a lot of issues. The csv file that includes the available pages and their
+popularities was originally in Unicode, but we learned the hard way that Unicode and Python's
+csv module do not mix. Similarly, we had to address the oddities of URL encoding, but urllib's
+quote function resolved this. These encoding idiosyncracies led to problems with the format
+of file names saved to our cache, and in particular, recognizing when certain HTTP requests
+with special characters were actually saved to our cache. It is possible that there remain
+some minor issues with encodings, but they are a fraction of what they used to be. Note that
+we also had to create a new CSV file that was saved with UTF-8 encoding, and then we had to
+decode (or reencode?) it to proper URL format as we loaded our popularity file.
 
-4. I ran into a lot of problems in testing that may have been because someone was hogging
-the origin server's CPU resources.
+4. Implementing the knapsack algorithm was difficult. In particular, it was a struggle to
+figure out what data structures would work and the syntax for using them.
+
+5. The DNS packet handling had some issues that required a little bit twiddling to fix.
 
 -------------------------
 
+If We Had More Time, We Would...
 
+1. Verify the path methodology. We think some paths may be getting cut off or are messed up
+by starting with a number or special character. This requires more investigating, but our
+current implementation will just return 404 errors to the client, which is far from ideal.
+
+2a. Improve our caching efficiency. Currently, we load the popularities from a CSV file on every
+replica server. Instead, the DNS Server can load the popularity and send it to each replica when
+the replicas come online. That way, we don't need to use up roughly 115 KB of storage on each
+replica. Alternatively, we could delete the CSV from the drive after loading the popularity
+dictionary.
+
+2b. Use an in-memory cache. This wouldn't be too difficult to implement, but we believe also
+would have a fairly low ROI, probably increasing the number of cache hits by only a few
+percentage points (due to the Zipf distribution). In addition, it would have increased the
+complexity of optimizing the cache, because disk I/O is so much less efficient than memory
+access. A naive solution would be to run the Knapsack algorithm using a max cache size 10 MB
+larger, and then just store the most popular ones in memory. While this would optimize the cache,
+it would pose a serious risk of running afoul of our disk/memory quotas, since the Knapsack
+algorithm doesn't take these separate limits into account. In addition, it could lead to
+more frequent disk writes as pages are swapped from memory to disk and back.
+
+3. Active measurement for replica servers. We would use some kind of weighted average of our
+most recent observation and historical latency as measured using the scamper utility. With time
+for testing, we would figure out the proper weighting parameter.
