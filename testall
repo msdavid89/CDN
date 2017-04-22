@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import sys, getopt
 import subprocess
 #list of replica servers to be used 
@@ -16,7 +16,7 @@ replicas_servers = [
 def validate_args():
     port = ''
     origin_server = ''
-    cdn_server = 'cs5700cdnproject.ccs.neu.edu'
+    cdn_server = 'cs5700cdn.example.com'
     RSA_key_path = ''
     username = ''
     name = ''
@@ -51,23 +51,22 @@ def validate_args():
 
 #function to run sripts (dnsserver) remotely  
 def run_dns_server(port, cdn_server, username, RSA_key_path, name):
-    run_dns = "ssh -i "+ RSA_key_path +" "+ username + "@" + cdn_server + " nohup" + " python " + "dnsserver.py -p "+ port + " -n "+ name + " &"
+    run_dns = "dig " + cdn_server + " @129.10.117.187 -p " + port  
     print run_dns
-    subprocess.check_output(run_dns, shell=True)
+    subprocess.call(run_dns, shell=True)
 
 
 #    print "dnsserver running...."
 #function to run httpserver on the replicas(from the lists above).
 
-def run_http_servers(port, origin_server, username, RSA_key_path,):
+def run_http_servers(port, origin_server, username, RSA_key_path):
     for replicas in replicas_servers:
-        run_http = "ssh -i "+ RSA_key_path +" "+ username + "@" + replicas + " nohup" + " python " + "httpserver.py -p "+ port + " -o "+ origin_server + " &"
-	print run_http
-        subprocess.check_output(run_http ,shell=True)
-#	print "httpserver running...."
+        run_http = "wget http://" + replicas +":"+ port + "/wiki/Main_Page" 
+        subprocess.call(run_http, shell=True)
+	#print replicas + " running...."
 
 if __name__ == '__main__':
 
     port, origin_server, cdn_server, username, RSA_key_path, name = validate_args()
     run_dns_server(port, cdn_server, username, RSA_key_path, name)
-    run_http_servers(port, origin_server, username, RSA_key_path )
+    run_http_servers(port, origin_server, username, RSA_key_path)
