@@ -34,6 +34,9 @@ store the contents, and if so, what might need to be removed from the cache to f
 
 TODO:
 
+--Verify the PATH methodology. I think some paths may be getting cut off or are messed up
+by starting with a number or something.
+
 1. Implement caching logic (httpserver.py) -- currently loads popularity from a CSV file on every
 replica server. This is stupid. Instead, the DNS Server can load the popularity and send it to
 each replica when the replicas come online.
