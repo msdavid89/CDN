@@ -6,11 +6,10 @@ import thread
 from threading import RLock
 import os
 import requests
-#import json
 import csv
 from urllib import quote
 
-MAX_CACHE = 9 * 1024 * 1024  # May need to adjust this, but assume we have 9 MB available
+MAX_CACHE = 10485600 # Roughly 10 * 1024 * 1024 - 150, so 10 MB - csv file and this executable
 
 
 class CacheHandler:
@@ -22,37 +21,12 @@ class CacheHandler:
         self.available_space = MAX_CACHE
         self.cache_directory = os.getcwd() + '/wiki_cache'
         self.cache_lock = RLock()
-        #self.cache_lock = thread.allocate_lock()
         self.space_lock = thread.allocate_lock()
         self.constraints_lock = thread.allocate_lock()
         self.load_local_cache(self.cache_directory)
         self.load_popularity_from_csv()
-        #try:
-            # Create socket for DNS Server connection, used for active measurements
-            # and/or passing cache info to DNS server.
-        #    self.dns_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #    self.dns_sock.connect(('cs5700cdnproject.ccs.neu.edu', self.dns_port))
-        #    self.dns_sock_lock = thread.allocate_lock()
-        #except:
-        #    sys.exit("Failed to connect to DNS Server...")
-        #self.handle_dns()
         self.update_constraints()
 
-    def handle_dns(self):
-        """The thread in this function will be passing caching info
-            to the DNS Server so that the DNS Server can pick the best replicas.
-        
-        try:
-            received = self.dns_sock.recv(65535)
-            print(received)
-            self.popularity = json.loads(received, object_hook=self.decode_json)
-        except:
-            # Failed to receive popularity from replica
-            print("failed to get popularity from DNS Server.")
-
-        print(self.popularity)
-        """
-        pass
 
     def load_popularity_from_csv(self):
         """Fills in the popularity dictionary using a CSV file with names and hit rates."""
@@ -124,7 +98,7 @@ class CacheHandler:
             try:
                 self.constraints[path] = (view_only_cache[path], self.popularity[page])
             except:
-                print("Error updating constraints for path: " + path + " and page: " + page)
+                print("Failed to update constraints for path: " + path + " and page: " + page)
         self.constraints_lock.release()
 
     def knapsack(self, path, contents, size):
@@ -157,11 +131,11 @@ class CacheHandler:
             for x in self.cache.keys():
                 if x not in solution:
                     # Remove any cached items that are suboptimal
-                    print("Removing from cache: " + x)
+                    #print("Removing from cache: " + x)
                     self.remove_from_cache(x)
             if path in solution:
                 # Add new page to cache if optimal
-                print("Adding to cache: " + path)
+                #print("Adding to cache: " + path)
                 self.add_to_cache(self.cache_directory + path, contents)
         except:
             print("Failed to optimize cache in knapsack.")
@@ -240,7 +214,7 @@ class CacheHandler:
             contents = file.read()
             file.close()
             size = len(contents)
-            print("Size of %s: %d" % (path, size))
+            #print("Size of %s: %d" % (path, size))
             return contents, size
         except:
             print("Error reading file from cache.")
@@ -293,7 +267,7 @@ class HTTPServer:
                 cli_sock, addr = self.serv_sock.accept()
                 thread.start_new_thread(self.connection_handler, (cli_sock,))
             except:
-                # 'Elegantly' shut down, particularly
+                # 'Elegantly' shut down
                 thread.interrupt_main()
                 sys.exit("Error accepting connection.")
 
@@ -354,17 +328,17 @@ class HTTPServer:
                     sock.sendall(response)
                 except:
                     print("Path where send failed: " + path)
-                print("PATH: " + path)
+                #print("PATH: " + path)
                 thread.start_new_thread(self.cache.update_cache, (path, r.content))
             elif r.status_code == 404:
-                print("-----404 error------")
+                #print("-----404 error------")
                 response = 'HTTP/1.1 404 Not Found\r\n'
                 try:
                     sock.sendall(response)
                 except:
                     print("Path where send failed: " + path)
             else:
-                print("---not 200 or 404---")
+                #print("---not 200 or 404---")
                 response = 'HTTP/1.1 404 Not Found\r\n'
                 try:
                     sock.sendall(response)
